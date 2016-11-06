@@ -1,0 +1,118 @@
+-- @nsURI JAVA=http://www.eclipse.org/MoDisco/Java/0.2.incubation/java
+-- @nsURI KDM=http://www.eclipse.org/MoDisco/kdm/code
+
+module Projeto_KDM2JAVA_ATL;
+create OUT: JAVA from IN: KDM;
+
+--orphanTypes
+--Helper para obter todos os CodeElement com PrimitiveType
+helper context KDM!LanguageUnit def: getOrphanElem(): Sequence(KDM!CodeElement) =
+self.codeElement.asSequence();
+
+helper context KDM!InventoryModel def: getCompilationUnit(): Sequence(KDM!inventoryElement) =
+self.inventoryElement.asSequence();
+
+helper context  KDM!ClassUnit def: getFieldDeclarationName(): Sequence(KDM!CodeElement) =
+self.codeElement.asSequence();
+
+lazy rule orphanNames{
+	from
+		source: KDM!LanguageUnit
+	to
+		target:JAVA!PrimitiveType
+		( name <-source.name)
+}
+
+lazy rule CompilationNames{
+	from
+		source: KDM!InventoryModel
+	to
+		target:JAVA!CompilationUnit
+		( name 			    <- source.name
+		  ,originalFilePath <- source.path
+		)
+}
+
+lazy rule FieldDeclarationNames{
+	from
+		source: KDM!StorableUnit
+	to
+		target:JAVA!FieldDeclaration
+		( name 			    <- source.name
+		  ,originalFilePath <- source.path
+		)
+}
+
+
+rule trasformKDMCodeModelToJavaModel{
+	from 
+		source:    KDM!CodeModel,
+		orphan:    KDM!LanguageUnit,
+		inventory: KDM!InventoryModel		
+	to  
+		target: JAVA!Model (
+		name                <- source.name
+		,ownedElements      <- source.codeElement 
+		,orphanTypes        <- orphan.getOrphanElem() -> collect (e |thisModule.orphanNames(e)) 
+		,compilationUnits   <- inventory.getCompilationUnit() -> collect (e |thisModule.CompilationNames(e)) 
+	)
+	  
+}
+
+
+rule trasformKDMPackageToJavaPackage{
+	from
+		source: KDM!Package
+	to
+		target: JAVA!Package (
+			name  <- source.name
+			,ownedElements <- source.codeElement -> select(e | e.oclIsTypeOf(KDM!Package) = false) 
+		    ,ownedPackages <- source.codeElement -> select(e | e.oclIsTypeOf(KDM!Package))
+			)		
+}
+
+rule trasformKDMClassUnitToJavaClassDeclaration{
+	from
+		source: KDM!ClassUnit
+		
+	 to  target: JAVA!ClassDeclaration (
+			 name  <- source.name
+		    ),
+		  javaAttributes: JAVA!FieldDeclaration(
+		  	modifier  <- source.codeElement
+			,fragments <- source.codeElement
+		  )
+			
+}
+
+
+rule trasformKDMStorableUnitToFieldDeclaration{
+
+	from
+	source: KDM!StorableUnit
+	to
+	target: JAVA!FieldDeclaration (
+	name <- source.name
+	)
+}
+--Não se esta mostrando
+--rule trasformKDMScodeElementTobodyDeclarations{
+--	from
+--		source: KDM!CodeElement
+--	to
+--		target: JAVA!BodyDeclaration (
+--		name <- source.name
+--		)
+--}
+
+--
+rule mudancaMethodUnitConstructor{
+	from
+		source: KDM!MethodUnit 
+		(source.kind = #constructor)
+	to
+		target: JAVA!ConstructorDeclaration (
+		name  <- source.name
+		)
+}
+
