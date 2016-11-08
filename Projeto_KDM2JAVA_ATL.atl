@@ -15,6 +15,33 @@ self.inventoryElement.asSequence();
 helper context  KDM!ClassUnit def: getFieldDeclarationName(): Sequence(KDM!CodeElement) =
 self.codeElement.asSequence();
 
+helper context KDM!Datatype def: getVisibility(): JAVA!VisibilityKind =
+	--if (self.attribute.value) then
+			--#unknown
+		--else
+			--if self.modifier.visibility.oclIsUndefined() then 
+				--#unknown
+			--else 
+				if (self.attribute.value = #public)	then 
+					#public
+				else
+					if (self.attribute.value = #protected) then
+						#protected
+					else
+						if (self.attribute.value = #none) then
+							--if (self.abstractTypeDeclaration.oclIsTypeOf(java!InterfaceDeclaration)) then
+								#public
+							--else
+								--#protected
+							--endif
+						else
+							#private
+						endif
+					endif			
+				endif;
+			--endif
+		 --endif;
+
 lazy rule orphanNames{
 	from
 		source: KDM!LanguageUnit
@@ -56,7 +83,6 @@ rule trasformKDMCodeModelToJavaModel{
 		,orphanTypes        <- orphan.getOrphanElem() -> collect (e |thisModule.orphanNames(e)) 
 		,compilationUnits   <- inventory.getCompilationUnit() -> collect (e |thisModule.CompilationNames(e)) 
 	)
-	  
 }
 
 
@@ -73,39 +99,40 @@ rule trasformKDMPackageToJavaPackage{
 
 rule trasformKDMClassUnitToJavaClassDeclaration{
 	from
-		source: KDM!ClassUnit
+		source: KDM!ClassUnit	
 		
 	 to  target: JAVA!ClassDeclaration (
-			 name  <- source.name
-		    ),
-		  javaAttributes: JAVA!FieldDeclaration(
-		  	modifier  <- source.codeElement
-			,fragments <- source.codeElement
-		  )
-			
+			bodyDeclarations <- source.codeElement -> select(e | e.oclIsTypeOf(KDM!StorableUnit))		
+		    )
 }
 
 
 rule trasformKDMStorableUnitToFieldDeclaration{
-
 	from
 	source: KDM!StorableUnit
+	
 	to
-	target: JAVA!FieldDeclaration (
-	name <- source.name
+	target: JAVA!FieldDeclaration(
+	name        <- source.name
+	,modifier 	<- variavelModifier
+	,type       <- variavelType 
+	,fragments  <- variavelFragments
 	)
+	,variavelModifier:JAVA!Modifier(
+	 visibility  <- #private
+	 --thisModule->getVisibility()
+	 --#private
+	)
+	,variavelType:JAVA!TypeAccess
+	( --type <- source.attribute ->getVisibility() 
+	)
+	
+	,variavelFragments:JAVA!VariableDeclarationFragment 
+	( name <- source.name)
 }
---Não se esta mostrando
---rule trasformKDMScodeElementTobodyDeclarations{
---	from
---		source: KDM!CodeElement
---	to
---		target: JAVA!BodyDeclaration (
---		name <- source.name
---		)
---}
 
---
+
+
 rule mudancaMethodUnitConstructor{
 	from
 		source: KDM!MethodUnit 
